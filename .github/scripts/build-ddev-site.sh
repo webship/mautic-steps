@@ -51,6 +51,14 @@ HOST="${PROJECT_NAME}.ddev.site"
 SITE_URL="https://${HOST}"
 PACKAGE="https://github.com/mautic/mautic/releases/download/${MAUTIC_VERSION}/${MAUTIC_VERSION}.zip"
 RELEASE_API="https://api.github.com/repos/mautic/mautic/releases/tags/${MAUTIC_VERSION}"
+# The SHA-256 sum of a release package, as its publisher gives it: the digest of the release's asset on GitHub
+# (${RELEASE_API}). A release named here needs no call to that API, which a shared CI runner can find rate-limited;
+# the sum of another release is asked of it.
+known_sum() {
+  case "$1" in
+    7.2.2) echo 'e156b290bf4a17f3e5ec05966715a43c8956504efd0df0752cdc13048030a191' ;;
+  esac
+}
 
 # site/mautic-site.php with the site's PHP, in the site's folder. The accounts and the settings travel as base64 of
 # a JSON object, in a first line before the script on PHP's standard input: never on a command line, never in a file.
@@ -116,11 +124,12 @@ YAMLEOF
 ddev start -y < /dev/null
 
 # The release package, checked against the SHA-256 sum its publisher gives beside it (the digest of the release's
-# asset).
+# asset): the sum named above, else the one the release's API gives.
 echo "Getting Mautic ${MAUTIC_VERSION}."
 ddev exec "set -e; cd /tmp && curl -sSfL --retry 3 -o mautic.zip '${PACKAGE}' \
-  && curl -sSfL --retry 3 -H 'Accept: application/vnd.github+json' -o release.json '${RELEASE_API}' \
-  && SUM=\$(php -r '\$r = json_decode(file_get_contents(\"release.json\"), true); foreach (\$r[\"assets\"] as \$a) { if (\$a[\"name\"] === \"${MAUTIC_VERSION}.zip\") { echo substr(\$a[\"digest\"], 7); } }') \
+  && SUM='$(known_sum "${MAUTIC_VERSION}")' \
+  && if [ -z \"\$SUM\" ]; then curl -sSfL --retry 5 --retry-all-errors --retry-delay 15 -H 'Accept: application/vnd.github+json' -o release.json '${RELEASE_API}' \
+       && SUM=\$(php -r '\$r = json_decode(file_get_contents(\"release.json\"), true); foreach (\$r[\"assets\"] as \$a) { if (\$a[\"name\"] === \"${MAUTIC_VERSION}.zip\") { echo substr(\$a[\"digest\"], 7); } }'); fi \
   && test -n \"\$SUM\" && echo \"\$SUM  mautic.zip\" | sha256sum -c - \
   && mkdir -p ${SITE} && unzip -q -o mautic.zip -d ${SITE} && rm -f mautic.zip release.json" < /dev/null
 

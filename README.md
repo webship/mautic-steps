@@ -194,7 +194,7 @@ report it wrote:
 
 ```
 3 scenarios (3 passed)
-11 steps (11 passed)
+10 steps (10 passed)
 ```
 
 One feature runs alone when the command line names it (a scenario too, with its line):
