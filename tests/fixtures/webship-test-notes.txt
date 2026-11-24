@@ -1,0 +1,1 @@
+Webship test notes: a plain text file, uploaded as an asset by the step pack's scenarios.
